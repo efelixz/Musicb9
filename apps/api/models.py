@@ -107,3 +107,12 @@ class VocalRender(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="vocal_renders")
+
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    voice_profile_id = Column(UUID(as_uuid=True), ForeignKey("voice_profiles.id"), nullable=True)
+    accepted_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime)
+    document_ref = Column(String)

@@ -2,7 +2,7 @@
 
 ## Frontend (Next.js + Tailwind)
 - [ ] Configurar layout base com `shadcn/ui`.
-- [ ] Implementar componentes de Web Audio para gravação de voz.
+- [x] Implementar componentes de Web Audio para gravação de voz.
 - [ ] Criar visualizador de Waveform para amostras gravadas.
 - [ ] Desenvolver editor de letras com suporte a seções (Verso/Refrão).
 - [ ] Implementar Timeline visual para o editor de música (Preview).
@@ -11,8 +11,8 @@
 
 ## Backend (FastAPI + PostgreSQL)
 - [ ] Configurar SQLAlchemy/SQLModel com migrações Alembic.
-- [ ] Implementar middleware de autenticação JWT.
-- [ ] Criar abstração para Object Storage (S3/R2 Wrapper).
+- [x] Implementar middleware de autenticação JWT.
+- [x] Criar abstração para Object Storage (S3/R2 Wrapper).
 - [ ] Desenvolver lógica de Ledger de Créditos (Atomic updates).
 - [ ] Configurar Celery com Redis para gestão de jobs assíncronos.
 - [ ] Implementar Webhooks para notificações de conclusão de processamento.

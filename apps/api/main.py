@@ -4,10 +4,12 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
 
+from fastapi import UploadFile, File
 from .database import get_db, engine
-from .models import Base, User, VoiceProfile, Project, Lyrics
+from .models import Base, User, VoiceProfile, Project, Lyrics, VoiceSample, ConsentRecord
 from .auth import get_password_hash, verify_password, create_access_token, get_current_user
 from .worker import process_voice_clone
+from .core.storage import storage
 
 # Cria as tabelas no banco de dados
 Base.metadata.create_all(bind=engine)
@@ -32,6 +34,10 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
 
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -53,6 +59,10 @@ class LyricsCreate(BaseModel):
 async def root():
     return {"message": "Bem-vindo à Voicify API", "status": "online"}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 @app.post("/auth/register", response_model=Token)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user_in.email).first()
@@ -71,9 +81,51 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": new_user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.post("/auth/login", response_model=Token)
+def login(user_in: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_in.email).first()
+    if not user or not verify_password(user_in.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.get("/voices")
 def list_voices(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(VoiceProfile).filter(VoiceProfile.user_id == current_user.id).all()
+
+@app.post("/voices/{voice_id}/consent")
+def record_consent(voice_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Simula gravação de registro de consentimento
+    consent = ConsentRecord(
+        user_id=current_user.id,
+        voice_profile_id=voice_id,
+        document_ref="internal://consent-v1"
+    )
+    db.add(consent)
+
+    voice = db.query(VoiceProfile).filter(VoiceProfile.id == voice_id).first()
+    if voice:
+        voice.status = "consented"
+
+    db.commit()
+    return {"status": "consented"}
+
+@app.post("/voices/{voice_id}/samples")
+async def upload_sample(voice_id: str, file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    file_path = await storage.save_sample(voice_id, file)
+
+    sample = VoiceSample(
+        voice_profile_id=voice_id,
+        file_url=file_path,
+        sample_type="guided"
+    )
+    db.add(sample)
+    db.commit()
+    return {"status": "uploaded", "path": file_path}
 
 @app.post("/voices")
 def create_voice(voice_in: VoiceProfileCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
