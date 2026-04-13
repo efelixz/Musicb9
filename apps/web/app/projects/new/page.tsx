@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Music, FileText, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Music, FileText, Sparkles, Loader2 } from 'lucide-react'
+import { api } from '../../../lib/api/client'
 
 export default function NewProjectWizard() {
   const router = useRouter()
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     genre: 'Pop',
@@ -20,9 +22,33 @@ export default function NewProjectWizard() {
   const nextStep = () => setStep(s => s + 1)
   const prevStep = () => setStep(s => s - 1)
 
-  const handleFinish = () => {
-    console.log('Finalizing project:', formData)
-    router.push('/dashboard')
+  const handleFinish = async () => {
+    setLoading(true)
+    try {
+      // 1. Criar o projeto
+      const project = await api.post('/projects', {
+        title: formData.title,
+        genre: formData.genre,
+        bpm: 120, // Default
+        mood: formData.mood
+      })
+
+      // 2. Adicionar as letras
+      await api.post(`/projects/${project.id}/lyrics`, {
+        raw_text: formData.lyrics,
+        language: 'pt-BR'
+      })
+
+      // 3. Disparar geração de melodia
+      await api.post(`/projects/${project.id}/generate-melody`, {})
+
+      router.push(`/projects/${project.id}`)
+    } catch (err) {
+      console.error('Erro ao criar projeto:', err)
+      alert('Ocorreu um erro ao criar seu projeto. Verifique seus créditos.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -216,9 +242,11 @@ export default function NewProjectWizard() {
             ) : (
               <button
                 onClick={handleFinish}
-                className="flex items-center gap-2 px-10 py-4 rounded-full font-bold text-white bg-green-600 hover:bg-green-700 shadow-xl transition-all scale-105"
+                disabled={loading}
+                className="flex items-center gap-2 px-10 py-4 rounded-full font-bold text-white bg-green-600 hover:bg-green-700 shadow-xl transition-all scale-105 disabled:opacity-50"
               >
-                Gerar Minha Música <Sparkles size={20} />
+                {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
+                {loading ? 'Processando...' : 'Gerar Minha Música'}
               </button>
             )}
           </div>
