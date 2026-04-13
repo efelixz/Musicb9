@@ -6,7 +6,10 @@ from typing import List
 
 from fastapi import UploadFile, File
 from .database import get_db, engine
-from .models import Base, User, VoiceProfile, Project, Lyrics, VoiceSample, ConsentRecord
+from .models import (
+    Base, User, VoiceProfile, Project, Lyrics, VoiceSample, ConsentRecord,
+    Plan, Subscription, CreditLedger, Job, Export, Notification, AuditLog
+)
 from .auth import get_password_hash, verify_password, create_access_token, get_current_user
 from .worker import process_voice_clone
 from .core.storage import storage
@@ -193,6 +196,46 @@ def generate_melody(project_id: str, current_user: User = Depends(get_current_us
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Mock de disparo de tarefa assíncrona
+    # Cria registro de job
+    job = Job(project_id=project.id, job_type="melody_generation", status="pending")
+    db.add(job)
+    db.commit()
+
+    # Disparo de tarefa assíncrona
     task = process_voice_clone.delay(str(current_user.id), "melody-gen")
-    return {"task_id": task.id, "status": "processing"}
+    return {"task_id": task.id, "job_id": job.id, "status": "processing"}
+
+# --- Novos domínios ---
+
+# Billing
+@app.get("/billing/plans")
+def list_plans(db: Session = Depends(get_db)):
+    return db.query(Plan).all()
+
+@app.get("/billing/subscription")
+def get_subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
+
+@app.get("/billing/credits")
+def get_credits(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    ledgers = db.query(CreditLedger).filter(CreditLedger.user_id == current_user.id).all()
+    total = sum(l.delta for l in ledgers)
+    return {"balance": total}
+
+# Notifications
+@app.get("/notifications")
+def list_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Notification).filter(Notification.user_id == current_user.id).order_by(Notification.created_at.desc()).all()
+
+# Admin (Placeholder)
+@app.get("/admin/stats")
+def get_admin_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Simula verificação de admin
+    if current_user.email != "admin@voicify.ai":
+         raise HTTPException(status_code=403, detail="Forbidden")
+
+    return {
+        "total_users": db.query(User).count(),
+        "total_projects": db.query(Project).count(),
+        "active_jobs": db.query(Job).filter(Job.status == "processing").count()
+    }

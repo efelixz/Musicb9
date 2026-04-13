@@ -104,9 +104,118 @@ class VocalRender(Base):
     file_url = Column(String)
     render_type = Column(String)
     status = Column(String, default="pending")
+    quality_score = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="vocal_renders")
+    melody_versions = relationship("MelodyVersion", back_populates="project")
+    arrangement_versions = relationship("ArrangementVersion", back_populates="project")
+    exports = relationship("Export", back_populates="project")
+    jobs = relationship("Job", back_populates="project")
+
+class MelodyVersion(Base):
+    __tablename__ = "melody_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    midi_ref = Column(String)
+    score = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="melody_versions")
+
+class ArrangementVersion(Base):
+    __tablename__ = "arrangement_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    stems_ref = Column(String)
+    arrangement_json = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="arrangement_versions")
+
+class Export(Base):
+    __tablename__ = "exports"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    format = Column(String) # mp3, wav, stems
+    file_url = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="exports")
+
+class Job(Base):
+    __tablename__ = "jobs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    job_type = Column(String)
+    status = Column(String, default="pending")
+    priority = Column(Integer, default=0)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="jobs")
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id"), nullable=False)
+    provider_id = Column(String)
+    status = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Plan(Base):
+    __tablename__ = "plans"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    included_credits = Column(Integer, default=0)
+
+class CreditLedger(Base):
+    __tablename__ = "credit_ledger"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    delta = Column(Integer, nullable=False)
+    reason = Column(String)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="USD")
+    status = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    action = Column(String, nullable=False)
+    entity_type = Column(String)
+    entity_id = Column(String)
+    metadata_json = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    type = Column(String)
+    payload = Column(JSON)
+    read_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    subject = Column(String, nullable=False)
+    status = Column(String, default="open")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class ConsentRecord(Base):
     __tablename__ = "consent_records"
