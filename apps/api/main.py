@@ -196,6 +196,20 @@ def generate_melody(project_id: str, current_user: User = Depends(get_current_us
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # REGRA DE NEGÓCIO: Verificação de créditos
+    ledgers = db.query(CreditLedger).filter(CreditLedger.user_id == current_user.id).all()
+    balance = sum(l.delta for l in ledgers)
+    if balance < 1:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    # REGRA DE NEGÓCIO: Verificar se há voz pronta/autorizada
+    voice = db.query(VoiceProfile).filter(VoiceProfile.user_id == current_user.id, VoiceProfile.status == "ready").first()
+    if not voice:
+        raise HTTPException(status_code=400, detail="No ready/authorized voice profile found")
+
+    # Consome crédito
+    db.add(CreditLedger(user_id=current_user.id, delta=-1, reason="Melody Generation", project_id=project.id))
+
     # Cria registro de job
     job = Job(project_id=project.id, job_type="melody_generation", status="pending")
     db.add(job)

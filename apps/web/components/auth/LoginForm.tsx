@@ -4,6 +4,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { api } from '../../lib/api/client'
+import { useState } from 'react'
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -11,12 +14,26 @@ const loginSchema = z.object({
 })
 
 export default function LoginForm() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(loginSchema)
   })
 
-  const onSubmit = (data: any) => {
-    console.log('Login attempt:', data)
+  const onSubmit = async (data: any) => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await api.post('/auth/login', data)
+      localStorage.setItem('voicify_token', response.access_token)
+      router.push('/dashboard')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -27,6 +44,11 @@ export default function LoginForm() {
           Sua música, sua voz, seu estúdio.
         </p>
       </div>
+      {error && (
+        <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm border border-red-200">
+          {error}
+        </div>
+      )}
       <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <div className="space-y-4 rounded-md shadow-sm">
           <div>
@@ -52,9 +74,10 @@ export default function LoginForm() {
         <div>
           <button
             type="submit"
-            className="flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={loading}
+            className="flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
           >
-            Entrar
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </div>
       </form>
