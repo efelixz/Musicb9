@@ -207,6 +207,10 @@ def generate_melody(project_id: str, current_user: User = Depends(get_current_us
     if not voice:
         raise HTTPException(status_code=400, detail="No ready/authorized voice profile found")
 
+    # REGRA DE NEGÓCIO: Score mínimo de qualidade (exemplo 0.8)
+    if voice.fidelity_score and voice.fidelity_score < 0.8:
+        raise HTTPException(status_code=400, detail="Voice profile quality too low for generation")
+
     # Consome crédito
     db.add(CreditLedger(user_id=current_user.id, delta=-1, reason="Melody Generation", project_id=project.id))
 
@@ -236,10 +240,67 @@ def get_credits(current_user: User = Depends(get_current_user), db: Session = De
     total = sum(l.delta for l in ledgers)
     return {"balance": total}
 
+@app.post("/billing/checkout")
+def create_checkout_session(plan_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Simula integração com Stripe
+    plan = db.query(Plan).filter(Plan.id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Simula sucesso imediato para o POC (em produção seria via webhook do Stripe)
+    db.add(Subscription(user_id=current_user.id, plan_id=plan.id, status="active"))
+    db.add(CreditLedger(user_id=current_user.id, delta=plan.included_credits, reason=f"Purchase: {plan.name}"))
+    db.commit()
+
+    return {"status": "success", "url": "https://stripe.com/mock-checkout"}
+
+@app.post("/projects/{project_id}/export")
+def export_project(project_id: str, export_format: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # REGRA DE NEGÓCIO: Certos exports exigem plano superior
+    sub = db.query(Subscription).filter(Subscription.user_id == current_user.id, Subscription.status == "active").first()
+    plan = db.query(Plan).filter(Plan.id == sub.plan_id).first() if sub else None
+
+    if export_format in ["wav", "stems"] and (not plan or plan.name == "Creator"):
+        raise HTTPException(status_code=403, detail="WAV and Stems export requires Pro or Artist plan")
+
+    new_export = Export(project_id=project_id, format=export_format, file_url=f"exports/{project_id}/final.{export_format}")
+    db.add(new_export)
+    db.commit()
+    return new_export
+
 # Notifications
 @app.get("/notifications")
 def list_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Notification).filter(Notification.user_id == current_user.id).order_by(Notification.created_at.desc()).all()
+
+# Governance & Privacy (LGPD/GDPR)
+@app.post("/privacy/revoke-consent")
+def revoke_consent(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Localiza o registro de consentimento ativo
+    consent = db.query(ConsentRecord).filter(ConsentRecord.user_id == current_user.id, ConsentRecord.revoked_at == None).first()
+    if consent:
+        consent.revoked_at = datetime.utcnow()
+        db.add(AuditLog(actor_id=current_user.id, action="CONSENT_REVOKED", entity_type="consent_record", entity_id=str(consent.id)))
+
+        # Bloqueia perfis vocais
+        voices = db.query(VoiceProfile).filter(VoiceProfile.user_id == current_user.id).all()
+        for v in voices:
+            v.status = "blocked_by_revocation"
+
+        db.commit()
+    return {"status": "consent_revoked"}
+
+@app.delete("/privacy/delete-data")
+def delete_all_user_data(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Registro de auditoria antes da deleção (pseudonimizado ou log de sistema)
+    db.add(AuditLog(action="USER_DATA_DELETION_REQUESTED", metadata_json={"user_id_ref": str(current_user.id)}))
+
+    # Lógica de deleção em cascata (simplificada para o POC)
+    db.query(VoiceProfile).filter(VoiceProfile.user_id == current_user.id).delete()
+    db.query(Project).filter(Project.user_id == current_user.id).delete()
+    db.commit()
+
+    return {"status": "data_deletion_initiated"}
 
 # Admin (Placeholder)
 @app.get("/admin/stats")

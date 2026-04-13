@@ -19,8 +19,17 @@ class VoiceEngine:
     def train_profile(self, user_id: str, samples: list) -> str:
         """Cria o embedding vocal permanente"""
         print(f"Treinando perfil vocal para usuário {user_id}...")
-        time.sleep(2) # Simula treinamento
-        return f"embeddings/{user_id}/vocal_identity_v1.bin"
+
+        # Simulação de análise de fidelidade real
+        time.sleep(2)
+
+        # POC: Metadados de fidelidade
+        return {
+            "embedding_ref": f"embeddings/{user_id}/vocal_identity_v1.bin",
+            "fidelity_score": 0.982,
+            "latency_ms": 1240,
+            "trained_at": time.time()
+        }
 
 if __name__ == "__main__":
     engine = VoiceEngine()

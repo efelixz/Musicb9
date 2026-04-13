@@ -11,7 +11,10 @@ export default function NewProjectWizard() {
     title: '',
     genre: 'Pop',
     mood: 'Happy',
-    lyrics: ''
+    lyrics: '',
+    melodyId: '',
+    voiceId: '',
+    arrangementStyle: 'Full Band'
   })
 
   const nextStep = () => setStep(s => s + 1)
@@ -29,12 +32,12 @@ export default function NewProjectWizard() {
         <div className="bg-blue-600 px-8 py-6 text-white">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">Criar Nova Música</h2>
-            <span className="text-sm font-medium opacity-80">Passo {step} de 3</span>
+            <span className="text-sm font-medium opacity-80">Passo {step} de 6</span>
           </div>
           <div className="w-full bg-blue-400/30 rounded-full h-2">
             <div
               className="bg-white h-2 rounded-full transition-all duration-500"
-              style={{ width: `${(step / 3) * 100}%` }}
+              style={{ width: `${(step / 6) * 100}%` }}
             ></div>
           </div>
         </div>
@@ -111,6 +114,63 @@ export default function NewProjectWizard() {
           )}
 
           {step === 3 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+               <div className="flex items-center gap-3 text-blue-600 mb-6">
+                <Sparkles size={28} />
+                <h3 className="text-2xl font-bold">Escolha a Melodia</h3>
+              </div>
+              <div className="space-y-4">
+                 {[1, 2, 3].map(i => (
+                    <div
+                      key={i}
+                      onClick={() => setFormData({...formData, melodyId: `m${i}`})}
+                      className={`p-4 border-2 rounded-2xl cursor-pointer transition ${formData.melodyId === `m${i}` ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}
+                    >
+                       <p className="font-bold">Opção Melódica {i}</p>
+                       <p className="text-xs text-gray-500 italic">Estilo: {formData.genre} • Vibe: {formData.mood}</p>
+                    </div>
+                 ))}
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+               <div className="flex items-center gap-3 text-blue-600 mb-6">
+                <Music size={28} />
+                <h3 className="text-2xl font-bold">Sua Identidade Vocal</h3>
+              </div>
+              <div className="p-4 border border-blue-200 bg-blue-50 rounded-2xl flex justify-between items-center">
+                 <div>
+                    <p className="font-bold">Rafael Vocal Gold</p>
+                    <p className="text-xs text-blue-600 uppercase font-bold">Score: 98.2%</p>
+                 </div>
+                 <span className="bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-bold">SELECIONADO</span>
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
+               <div className="flex items-center gap-3 text-blue-600 mb-6">
+                <Music size={28} />
+                <h3 className="text-2xl font-bold">Arranjo e Instrumentação</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 {['Full Band', 'Acoustic', 'Electronic', 'Minimalist'].map(style => (
+                    <div
+                      key={style}
+                      onClick={() => setFormData({...formData, arrangementStyle: style})}
+                      className={`p-6 border-2 rounded-2xl text-center cursor-pointer transition ${formData.arrangementStyle === style ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}
+                    >
+                       <p className="font-bold">{style}</p>
+                    </div>
+                 ))}
+              </div>
+            </div>
+          )}
+
+          {step === 6 && (
             <div className="space-y-8 text-center py-10 animate-in fade-in zoom-in-95">
               <div className="mx-auto w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-6">
                 <Sparkles size={40} />
@@ -125,7 +185,7 @@ export default function NewProjectWizard() {
                 <p className="text-sm font-bold text-gray-400 uppercase mb-2">Resumo</p>
                 <p className="text-gray-900"><span className="font-semibold">Título:</span> {formData.title}</p>
                 <p className="text-gray-900"><span className="font-semibold">Estilo:</span> {formData.genre} ({formData.mood})</p>
-                <p className="text-gray-900 mt-2 truncate"><span className="font-semibold">Letra:</span> {formData.lyrics.substring(0, 50)}...</p>
+                <p className="text-gray-900"><span className="font-semibold">Arranjo:</span> {formData.arrangementStyle}</p>
               </div>
             </div>
           )}
@@ -143,7 +203,7 @@ export default function NewProjectWizard() {
               <div></div>
             )}
 
-            {step < 3 ? (
+            {step < 6 ? (
               <button
                 onClick={nextStep}
                 disabled={step === 1 && !formData.title}
