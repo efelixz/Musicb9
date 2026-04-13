@@ -228,6 +228,34 @@ class SupportTicket(Base):
     status = Column(String, default="open")
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class Preset(Base):
+    __tablename__ = "presets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category = Column(String) # genre, mood, arrangement
+    name = Column(String, nullable=False)
+    config_json = Column(JSON)
+    is_public = Column(Boolean, default=True)
+
+class MarketplaceVoice(Base):
+    __tablename__ = "marketplace_voices"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    genre = Column(String)
+    tone = Column(String)
+    price_credits = Column(Integer, default=0)
+    sample_url = Column(String)
+    is_active = Column(Boolean, default=True)
+
+class APIKey(Base):
+    __tablename__ = "api_keys"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    key_hash = Column(String, unique=True, nullable=False)
+    name = Column(String)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
+
 class ConsentRecord(Base):
     __tablename__ = "consent_records"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

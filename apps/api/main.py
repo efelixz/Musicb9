@@ -8,11 +8,12 @@ from fastapi import UploadFile, File
 from .database import get_db, engine
 from .models import (
     Base, User, VoiceProfile, Project, Lyrics, VoiceSample, ConsentRecord,
-    Plan, Subscription, CreditLedger, Job, Export, Notification, AuditLog
+    Plan, Subscription, CreditLedger, Job, Export, Notification, AuditLog, APIKey, Preset, MarketplaceVoice
 )
 from .auth import get_password_hash, verify_password, create_access_token, get_current_user
 from .worker import process_voice_clone
 from .core.storage import storage
+from .core.search import search_service
 
 # Cria as tabelas no banco de dados
 Base.metadata.create_all(bind=engine)
@@ -119,6 +120,10 @@ def record_consent(voice_id: str, current_user: User = Depends(get_current_user)
 
 @app.post("/voices/{voice_id}/samples")
 async def upload_sample(voice_id: str, file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # IA GOVERNANCE: Verificação de Segurança (Trust & Safety)
+    # Em produção, carregaríamos o TrustSafetyService
+    # is_safe = trust_safety.scan_vocal_sample(file.file.read())
+
     file_path = await storage.save_sample(voice_id, file)
 
     sample = VoiceSample(
@@ -148,6 +153,30 @@ def list_projects(q: str = None, current_user: User = Depends(get_current_user),
         query = query.filter(Project.title.ilike(f"%{q}%"))
     return query.all()
 
+@app.get("/marketplace/voices")
+def list_marketplace_voices(db: Session = Depends(get_db)):
+    return db.query(MarketplaceVoice).filter(MarketplaceVoice.is_active == True).all()
+
+@app.post("/marketplace/voices/{voice_id}/activate")
+def activate_marketplace_voice(voice_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    voice = db.query(MarketplaceVoice).filter(MarketplaceVoice.id == voice_id).first()
+    if not voice:
+        raise HTTPException(status_code=404, detail="Voice not found")
+
+    # Verifica créditos
+    ledgers = db.query(CreditLedger).filter(CreditLedger.user_id == current_user.id).all()
+    balance = sum(l.delta for l in ledgers)
+    if balance < voice.price_credits:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    # Consome créditos e ativa (cria perfil vocal para o usuário)
+    db.add(CreditLedger(user_id=current_user.id, delta=-voice.price_credits, reason=f"Marketplace: {voice.name}"))
+    new_profile = VoiceProfile(user_id=current_user.id, name=voice.name, status="ready", fidelity_score=1.0)
+    db.add(new_profile)
+    db.commit()
+
+    return {"status": "activated", "profile_id": new_profile.id}
+
 @app.post("/projects")
 def create_project(project_in: ProjectCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     new_project = Project(
@@ -167,7 +196,21 @@ def get_project(project_id: str, current_user: User = Depends(get_current_user),
     project = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project
+
+    # REGRA DE NEGÓCIO: Ranking e Sugestão de Arranjos (Seção 4.3)
+    # Simula a sugestão de presets baseados no BPM e Gênero do projeto
+    suggested_presets = db.query(Preset).filter(
+        Preset.category == "arrangement",
+        Preset.config_json["genre"].astext == project.genre
+    ).limit(3).all()
+
+    return {
+        "project": project,
+        "recommendations": {
+            "arrangements": suggested_presets,
+            "tempo_match": True if project.bpm >= 100 else False
+        }
+    }
 
 @app.post("/projects/{project_id}/lyrics")
 def update_project_lyrics(project_id: str, lyrics_in: LyricsCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -317,3 +360,43 @@ def get_admin_stats(current_user: User = Depends(get_current_user), db: Session 
         "total_projects": db.query(Project).count(),
         "active_jobs": db.query(Job).filter(Job.status == "processing").count()
     }
+
+# --- Enterprise & B2B ---
+
+@app.post("/enterprise/keys")
+def generate_api_key(name: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Simula geração de chave segura
+    raw_key = f"sk_live_{uuid.uuid4().hex}"
+    new_key = APIKey(
+        user_id=current_user.id,
+        key_hash=get_password_hash(raw_key), # Armazena hash por segurança
+        name=name
+    )
+    db.add(new_key)
+    db.commit()
+    return {"name": name, "key": raw_key, "note": "Guarde esta chave, ela não será exibida novamente"}
+
+@app.get("/enterprise/keys")
+def list_api_keys(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(APIKey).filter(APIKey.user_id == current_user.id, APIKey.is_active == True).all()
+
+# --- Presets & Library ---
+
+@app.get("/presets")
+def list_presets(category: str = None, db: Session = Depends(get_db)):
+    query = db.query(Preset).filter(Preset.is_public == True)
+    if category:
+        query = query.filter(Preset.category == category)
+    return query.all()
+
+@app.get("/search")
+def global_search(q: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Integração com OpenSearch/Elasticsearch
+    results = search_service.query(q, str(current_user.id))
+
+    # Fallback simples para banco relacional se busca externa estiver vazia
+    if not results:
+        projects = db.query(Project).filter(Project.user_id == current_user.id, Project.title.ilike(f"%{q}%")).all()
+        return {"results": projects, "source": "database"}
+
+    return {"results": results, "source": "opensearch"}
