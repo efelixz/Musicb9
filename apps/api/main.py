@@ -142,8 +142,11 @@ def create_voice(voice_in: VoiceProfileCreate, current_user: User = Depends(get_
     return new_voice
 
 @app.get("/projects")
-def list_projects(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.query(Project).filter(Project.user_id == current_user.id).all()
+def list_projects(q: str = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    query = db.query(Project).filter(Project.user_id == current_user.id)
+    if q:
+        query = query.filter(Project.title.ilike(f"%{q}%"))
+    return query.all()
 
 @app.post("/projects")
 def create_project(project_in: ProjectCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
