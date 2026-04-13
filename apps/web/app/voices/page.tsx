@@ -12,7 +12,8 @@ export default function VoicesPage() {
              <div className="p-4 bg-slate-900 rounded-lg flex justify-between items-center border border-blue-500/30">
                 <div>
                    <p className="font-medium text-white">Rafael Vocal Gold</p>
-                   <p className="text-xs text-blue-400">Score de Fidelidade: 98%</p>
+                   <p className="text-xs text-slate-400">Estilo Artístico: <span className="text-blue-400 font-bold">Pop / Modern</span></p>
+                   <p className="text-[10px] text-blue-400/60 uppercase font-black mt-1">Fidelidade: 98%</p>
                 </div>
                 <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">Ativo</span>
              </div>

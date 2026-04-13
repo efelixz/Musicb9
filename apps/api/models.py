@@ -38,6 +38,7 @@ class VoiceProfile(Base):
     name = Column(String, nullable=False)
     status = Column(String, default="pending")
     fidelity_score = Column(Float)
+    artistic_style = Column(String) # Pop, Dark, Rock, etc.
     metadata_json = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
 

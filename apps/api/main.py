@@ -206,6 +206,11 @@ def get_project(project_id: str, current_user: User = Depends(get_current_user),
 
     return {
         "project": project,
+        "versions": {
+            "melodies": db.query(MelodyVersion).filter(MelodyVersion.project_id == project_id).all(),
+            "arrangements": db.query(ArrangementVersion).filter(ArrangementVersion.project_id == project_id).all(),
+            "renders": db.query(VocalRender).filter(VocalRender.project_id == project_id).all()
+        },
         "recommendations": {
             "arrangements": suggested_presets,
             "tempo_match": True if project.bpm >= 100 else False

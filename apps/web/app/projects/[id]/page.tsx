@@ -89,6 +89,25 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                    <span className="text-[10px] font-black uppercase text-slate-400">Mix/Master</span>
                 </button>
             </div>
+
+            {/* Mixing Sliders (Seção 1.2) */}
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 bg-slate-900/30 p-6 rounded-2xl border border-white/5">
+                {[
+                  { label: 'Vocal', icon: '🎤', vol: 85 },
+                  { label: 'Bateria', icon: '🥁', vol: 70 },
+                  { label: 'Baixo', icon: '🎸', vol: 60 },
+                  { label: 'Melodia', icon: '🎹', vol: 75 },
+                ].map(stem => (
+                   <div key={stem.label} className="flex flex-col items-center gap-3">
+                      <span className="text-sm">{stem.icon}</span>
+                      <div className="h-32 w-1.5 bg-slate-800 rounded-full relative group">
+                         <div style={{ height: `${stem.vol}%` }} className="w-full bg-blue-500 rounded-full absolute bottom-0 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                         <div style={{ bottom: `${stem.vol}%` }} className="w-4 h-4 bg-white rounded-full absolute left-1/2 -translate-x-1/2 -mb-2 border-2 border-blue-500 cursor-pointer shadow-lg group-hover:scale-125 transition"></div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{stem.label}</span>
+                   </div>
+                ))}
+            </div>
           </div>
         </div>
 
