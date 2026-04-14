@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -8,7 +8,8 @@ from fastapi import UploadFile, File
 from .database import get_db, engine
 from .models import (
     Base, User, VoiceProfile, Project, Lyrics, VoiceSample, ConsentRecord,
-    Plan, Subscription, CreditLedger, Job, Export, Notification, AuditLog, APIKey, Preset, MarketplaceVoice
+    Plan, Subscription, CreditLedger, Job, Export, Notification, AuditLog, APIKey, Preset, MarketplaceVoice,
+    ArrangementVersion
 )
 from .auth import get_password_hash, verify_password, create_access_token, get_current_user
 from .worker import process_voice_clone
@@ -324,6 +325,33 @@ def export_project(project_id: str, export_format: str, current_user: User = Dep
 def list_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Notification).filter(Notification.user_id == current_user.id).order_by(Notification.created_at.desc()).all()
 
+# WebSocket para notificações In-App (Seção 4.1)
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/notifications/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Mantém a conexão viva ou processa comandos simples
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 # Governance & Privacy (LGPD/GDPR)
 @app.post("/privacy/revoke-consent")
 def revoke_consent(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -366,6 +394,28 @@ def get_admin_stats(current_user: User = Depends(get_current_user), db: Session 
         "active_jobs": db.query(Job).filter(Job.status == "processing").count()
     }
 
+@app.post("/admin/users/{user_id}/credits")
+def add_admin_credits(user_id: str, delta: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.email != "admin@voicify.ai":
+         raise HTTPException(status_code=403, detail="Forbidden")
+
+    db.add(CreditLedger(user_id=user_id, delta=delta, reason="Admin Adjustment"))
+    db.commit()
+    return {"status": "success", "new_delta": delta}
+
+@app.patch("/admin/users/{user_id}/status")
+def update_user_status(user_id: str, status: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.email != "admin@voicify.ai":
+         raise HTTPException(status_code=403, detail="Forbidden")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.status = status
+    db.commit()
+    return {"status": "updated", "user_id": user_id, "new_status": status}
+
 # --- Enterprise & B2B ---
 
 @app.post("/enterprise/keys")
@@ -384,6 +434,20 @@ def generate_api_key(name: str, current_user: User = Depends(get_current_user), 
 @app.get("/enterprise/keys")
 def list_api_keys(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(APIKey).filter(APIKey.user_id == current_user.id, APIKey.is_active == True).all()
+
+# --- External API (B2B Rendering) ---
+
+class ExternalRenderRequest(BaseModel):
+    vocal_profile_id: str
+    lyrics: str
+    style_preset: str = "pop"
+
+@app.post("/v1/external/render")
+def external_render(req: ExternalRenderRequest, db: Session = Depends(get_db)):
+    # Aqui validaria a API Key no header (simulado)
+    # project = create_project(...)
+    # trigger_render(...)
+    return {"status": "accepted", "request_id": uuid.uuid4().hex, "estimated_wait": "45s"}
 
 # --- Presets & Library ---
 
@@ -405,3 +469,13 @@ def global_search(q: str, current_user: User = Depends(get_current_user), db: Se
         return {"results": projects, "source": "database"}
 
     return {"results": results, "source": "opensearch"}
+
+@app.patch("/projects/{project_id}/mixing")
+def update_mixing(project_id: str, settings: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    arrangement = db.query(ArrangementVersion).filter(ArrangementVersion.project_id == project_id).order_by(ArrangementVersion.created_at.desc()).first()
+    if not arrangement:
+        raise HTTPException(status_code=404, detail="No arrangement found for this project")
+
+    arrangement.mixing_settings = settings
+    db.commit()
+    return {"status": "updated", "settings": settings}

@@ -113,6 +113,13 @@ class VocalRender(Base):
     arrangement_versions = relationship("ArrangementVersion", back_populates="project")
     exports = relationship("Export", back_populates="project")
     jobs = relationship("Job", back_populates="project")
+    voices = relationship("VoiceProfile", secondary="project_voices")
+
+class ProjectVoice(Base):
+    __tablename__ = "project_voices"
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), primary_key=True)
+    voice_profile_id = Column(UUID(as_uuid=True), ForeignKey("voice_profiles.id"), primary_key=True)
+    role = Column(String, default="lead") # lead, backing, duet
 
 class MelodyVersion(Base):
     __tablename__ = "melody_versions"
@@ -130,6 +137,7 @@ class ArrangementVersion(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     stems_ref = Column(String)
     arrangement_json = Column(JSON)
+    mixing_settings = Column(JSON, default={"vocal": 80, "drums": 80, "bass": 80, "melody": 80})
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="arrangement_versions")
